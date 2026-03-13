@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word 批量填写工具</title>
+<script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.4/dist/pizzip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docxtemplater@3.37.12/build/docxtemplater.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+SC:wght@300;400;500;600&display=swap');
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1c2330;
+  --border:#30363d;--amber:#f0a500;--adim:rgba(240,165,0,.12);--aglow:rgba(240,165,0,.25);
+  --text:#e6edf3;--tdim:#7d8590;--tdimmer:#484f58;
+  --green:#3fb950;--red:#f85149;--blue:#58a6ff;
+  --r:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans SC','PingFang SC',sans-serif;min-height:100vh;padding-bottom:60px;}
+
+header{border-bottom:1px solid var(--border);padding:15px 28px;display:flex;align-items:center;gap:12px;background:var(--bg2);position:sticky;top:0;z-index:10;}
+.logo{width:30px;height:30px;background:var(--amber);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13px;color:#0d1117;}
+header h1{font-size:14px;font-weight:600;}
+.ver{font-size:11px;color:var(--tdim);font-family:'IBM Plex Mono',monospace;margin-left:auto;}
+
+main{max-width:820px;margin:0 auto;padding:28px 20px 0;}
+
+.steps{display:flex;margin-bottom:24px;position:relative;}
+.steps::before{content:'';position:absolute;top:17px;left:18px;right:18px;height:1px;background:var(--border);}
+.step{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;z-index:1;}
+.sn{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:var(--tdim);transition:all .3s;}
+.sl{font-size:11px;color:var(--tdim);text-align:center;line-height:1.4;}
+.step.active .sn{border-color:var(--amber);background:var(--adim);color:var(--amber);box-shadow:0 0 10px var(--aglow);}
+.step.active .sl{color:var(--amber);}
+.step.done .sn{border-color:var(--green);background:rgba(63,185,80,.1);color:var(--green);}
+.step.done .sl{color:var(--green);}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden;}
+.card.ac{border-color:var(--amber);box-shadow:0 0 0 1px var(--aglow);}
+.card.dc{border-color:rgba(63,185,80,.3);opacity:.7;}
+.ch{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px;}
+.badge{background:var(--adim);color:var(--amber);border:1px solid rgba(240,165,0,.3);border-radius:4px;padding:2px 7px;font-size:10px;font-family:'IBM Plex Mono',monospace;font-weight:600;letter-spacing:.05em;}
+.card.dc .badge{background:rgba(63,185,80,.1);color:var(--green);border-color:rgba(63,185,80,.3);}
+.ct{font-size:14px;font-weight:600;}
+.cb{padding:18px;}
+
+.uz{border:1.5px dashed var(--border);border-radius:var(--r);padding:30px 20px;text-align:center;cursor:pointer;transition:all .2s;position:relative;}
+.uz:hover,.uz.dov{border-color:var(--amber);background:var(--adim);}
+.uz input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.ui{font-size:26px;margin-bottom:7px;display:block;}
+.ut{font-size:13px;font-weight:500;margin-bottom:4px;}
+.us{font-size:11px;color:var(--tdim);font-family:'IBM Plex Mono',monospace;}
+
+.hint{background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:var(--r);padding:11px 15px;margin-top:13px;font-size:12px;color:var(--tdim);line-height:1.9;}
+.hint strong{color:var(--amber);font-family:'IBM Plex Mono',monospace;}
+
+.fi{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:9px 13px;margin-bottom:13px;}
+.fi-name{font-size:13px;font-weight:500;}
+.fi-size{font-size:11px;color:var(--tdim);font-family:'IBM Plex Mono',monospace;}
+.fi-clear{margin-left:auto;background:none;border:none;color:var(--tdim);cursor:pointer;font-size:15px;padding:2px 5px;border-radius:3px;}
+.fi-clear:hover{background:rgba(248,81,73,.15);color:var(--red);}
+
+.tc{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+.chip{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:3px 9px;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--blue);display:flex;align-items:center;gap:4px;}
+.chip .lbl{font-size:9px;color:var(--tdimmer);}
+
+.slb{font-size:11px;color:var(--tdim);text-transform:uppercase;letter-spacing:.07em;font-family:'IBM Plex Mono',monospace;margin-bottom:7px;display:flex;align-items:center;gap:7px;}
+.cbadge{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:1px 7px;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--tdim);}
+
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:var(--r);font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:'IBM Plex Sans SC',sans-serif;transition:all .15s;}
+.btn-a{background:var(--amber);color:#0d1117;}
+.btn-a:hover{background:#ffc107;transform:translateY(-1px);box-shadow:0 4px 10px var(--aglow);}
+.btn-a:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none;}
+.btn-g{background:var(--green);color:#0d1117;}
+.btn-g:hover{background:#56d364;transform:translateY(-1px);}
+.btn-g:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.btn-row{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap;}
+
+.tw{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r);}
+table{width:100%;border-collapse:collapse;font-size:12px;font-family:'IBM Plex Mono',monospace;}
+th{background:var(--bg3);padding:7px 11px;text-align:left;color:var(--amber);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:6px 11px;border-bottom:1px solid var(--border);color:var(--tdim);white-space:nowrap;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(255,255,255,.02);}
+
+.rl{display:flex;flex-direction:column;gap:6px;margin-top:10px;max-height:260px;overflow-y:auto;}
+.ri{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:7px 12px;font-size:12px;}
+.ri-n{flex:1;color:var(--text);}
+.ri-b{background:none;border:1px solid var(--border);color:var(--blue);border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;transition:all .15s;}
+.ri-b:hover{border-color:var(--blue);background:rgba(88,166,255,.1);}
+
+.sb{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;font-size:12px;display:flex;align-items:center;gap:9px;margin-top:11px;}
+.sb.ok{border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.06);}
+.sb.err{border-color:rgba(248,81,73,.4);background:rgba(248,81,73,.06);color:var(--red);}
+.sd{width:7px;height:7px;border-radius:50%;background:var(--amber);flex-shrink:0;animation:pulse 1.5s infinite;}
+.sb.ok .sd{background:var(--green);animation:none;}
+.sb.err .sd{background:var(--red);animation:none;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.dvd{height:1px;background:var(--border);margin:13px 0;}
+.note{font-size:11px;color:var(--tdimmer);margin-top:6px;}
+#errBanner{display:none;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.4);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--red);}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">WX</div>
+  <h1>Word 批量填写工具</h1>
+  <span class="ver">v4.0 · 纯文字 · 本地运行</span>
+</header>
+<main>
+  <div id="errBanner"></div>
+
+  <div class="steps">
+    <div class="step active" id="s1"><div class="sn">01</div><div class="sl">上传 Word<br>模板</div></div>
+    <div class="step" id="s2"><div class="sn">02</div><div class="sl">下载 Excel<br>填写数据</div></div>
+    <div class="step" id="s3"><div class="sn">03</div><div class="sl">上传 Excel<br>批量生成</div></div>
+  </div>
+
+  <!-- Card 1 -->
+  <div class="card ac" id="card1">
+    <div class="ch"><span class="badge">STEP 01</span><span class="ct">上传 Word 模板文件</span></div>
+    <div class="cb">
+      <div id="wfi" style="display:none"></div>
+      <div class="uz" id="wdz">
+        <input type="file" id="wf" accept=".docx">
+        <span class="ui">📄</span>
+        <div class="ut">点击选择或拖拽 .docx 文件</div>
+        <div class="us">Word 2007+ (.docx)</div>
+      </div>
+      <div class="hint">
+        在 Word 中用 <strong>{{字段名}}</strong> 标记要填写的位置，例如 <strong>{{姓名}}</strong>、<strong>{{单位}}</strong>、<strong>{{日期}}</strong><br>
+        保存为 .docx 后上传，工具自动识别所有字段
+      </div>
+      <div id="tagsPrev" style="display:none">
+        <div class="dvd"></div>
+        <div class="slb">检测到的字段 <span id="tagCount" class="cbadge">0</span></div>
+        <div id="tagsBox" class="tc"></div>
+        <div class="btn-row">
+          <button class="btn btn-a" id="btnExportXls" disabled>⬇ 导出 Excel 模板</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 2 -->
+  <div class="card" id="card2">
+    <div class="ch"><span class="badge">STEP 02</span><span class="ct">在 Excel 中填写数据</span></div>
+    <div class="cb">
+      <div id="xlsInfo">
+        <p style="font-size:13px;color:var(--tdim);line-height:1.8">完成第一步后，下载 Excel 模板。<br>每一<b style="color:var(--text)">列</b>对应一个字段，每一<b style="color:var(--text)">行</b>对应一份文档，填完保存后上传到第三步。</p>
+      </div>
+      <div id="xlsPrev" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Card 3 -->
+  <div class="card" id="card3">
+    <div class="ch"><span class="badge">STEP 03</span><span class="ct">上传填好的 Excel，批量生成 Word</span></div>
+    <div class="cb">
+      <div id="efi" style="display:none"></div>
+      <div class="uz" id="edz">
+        <input type="file" id="ef" accept=".xlsx,.xls">
+        <span class="ui">📊</span>
+        <div class="ut">点击选择或拖拽填好的 Excel</div>
+        <div class="us">.xlsx 格式</div>
+      </div>
+      <div id="genArea" style="display:none">
+        <div class="dvd"></div>
+        <div id="dataPreview"></div>
+        <div class="btn-row">
+          <button class="btn btn-g" id="btnGen">⚡ 批量生成 Word 文件</button>
+        </div>
+      </div>
+      <div id="resultArea" style="display:none"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmtB = b => b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB';
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+let wordBytes=null, wordName='', tags=[], excelRows=[], generated=[];
+
+function setStep(n){
+  [1,2,3].forEach(i=>{
+    $('s'+i).className='step'+(i<n?' done':i===n?' active':'');
+    $('card'+i).className='card'+(i<n?' dc':i===n?' ac':'');
+  });
+}
+
+function readBuf(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=e=>res(e.target.result);
+    r.onerror=rej;
+    r.readAsArrayBuffer(file);
+  });
+}
+
+function dlBlob(blob,name){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+
+function mkFI(name,size,onClear){
+  const d=document.createElement('div'); d.className='fi';
+  d.innerHTML=`<span>📄</span><div><div class="fi-name">${name}</div><div class="fi-size">${fmtB(size)}</div></div><button class="fi-clear">✕</button>`;
+  d.querySelector('.fi-clear').onclick=onClear;
+  return d;
+}
+
+// ── Step 1 ─────────────────────────────────────────────────────────────────
+const wdz=$('wdz'), wf=$('wf');
+wdz.addEventListener('dragover',e=>{e.preventDefault();wdz.classList.add('dov');});
+wdz.addEventListener('dragleave',()=>wdz.classList.remove('dov'));
+wdz.addEventListener('drop',e=>{e.preventDefault();wdz.classList.remove('dov');e.dataTransfer.files[0]&&handleWord(e.dataTransfer.files[0]);});
+wf.addEventListener('change',()=>wf.files[0]&&handleWord(wf.files[0]));
+
+function resetAll(){
+  wordBytes=null; wordName=''; tags=[]; excelRows=[]; generated=[];
+  $('wfi').style.display='none'; wdz.style.display='';
+  $('tagsPrev').style.display='none'; $('btnExportXls').disabled=true;
+  $('xlsInfo').style.display='block'; $('xlsPrev').style.display='none';
+  $('efi').style.display='none'; edz.style.display='';
+  $('genArea').style.display='none'; $('resultArea').style.display='none';
+  wf.value=''; ef.value=''; setStep(1);
+}
+
+function handleWord(file){
+  if(!file.name.endsWith('.docx')){alert('请上传 .docx 格式的文件');return;}
+  wordName=file.name;
+  const fi=mkFI(file.name,file.size,resetAll);
+  $('wfi').innerHTML=''; $('wfi').appendChild(fi); $('wfi').style.display='block';
+  wdz.style.display='none';
+
+  readBuf(file).then(buf=>{
+    wordBytes=buf;
+    const zip=new PizZip(buf);
+    const xml=zip.files['word/document.xml'].asText();
+    const plain=xml.replace(/<[^>]+>/g,' ');
+    const src=plain+' '+xml;
+    const set=new Set(); let m;
+    const re=/\{\{([^{}]+?)\}\}/g;
+    while((m=re.exec(src))) set.add(m[1].trim());
+    tags=[...set];
+
+    if(!tags.length){
+      $('tagsBox').innerHTML='';
+      $('tagsPrev').innerHTML='<div class="sb err"><div class="sd"></div><span>未找到任何 {{字段名}} 占位符，请在 Word 中添加后重新上传。</span></div>';
+      $('tagsPrev').style.display='block';
+      return;
+    }
+
+    $('tagCount').textContent=tags.length+' 个';
+    $('tagsBox').innerHTML=tags.map(t=>`<div class="chip"><span class="lbl">{{}}</span>${t}</div>`).join('');
+    $('tagsPrev').style.display='block';
+    $('btnExportXls').disabled=false;
+    setStep(2); $('card2').className='card ac';
+    buildXlsPreview();
+  }).catch(e=>alert('读取失败：'+e.message));
+}
+
+// ── Step 2 ─────────────────────────────────────────────────────────────────
+function buildXlsPreview(){
+  let tbl=`<div class="slb">Excel 模板结构</div><div class="tw"><table><tr>${tags.map(t=>`<th>{{${t}}}</th>`).join('')}</tr>`;
+  for(let i=1;i<=2;i++) tbl+=`<tr>${tags.map(()=>`<td style="color:var(--tdimmer)">（第${i}份）</td>`).join('')}</tr>`;
+  tbl+=`</table></div><p class="note">每行 = 一份文档，有多少份就填多少行</p>`;
+  $('xlsPrev').innerHTML=tbl;
+  $('xlsInfo').style.display='none';
+  $('xlsPrev').style.display='block';
+}
+
+$('btnExportXls').onclick=()=>{
+  if(typeof XLSX==='undefined'){alert('XLSX 库未加载，请检查网络后刷新');return;}
+  try{
+    const wb=XLSX.utils.book_new();
+    const ws=XLSX.utils.aoa_to_sheet([tags,...Array(3).fill(tags.map(()=>''))]);
+    ws['!cols']=tags.map(()=>({wch:18}));
+    XLSX.utils.book_append_sheet(wb,ws,'填写数据');
+    const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    dlBlob(new Blob([buf],{type:'application/octet-stream'}),wordName.replace('.docx','')+'_填写模板.xlsx');
+    setStep(3); $('card3').className='card ac';
+  }catch(e){alert('导出失败：'+e.message);}
+};
+
+// ── Step 3 ─────────────────────────────────────────────────────────────────
+const edz=$('edz'), ef=$('ef');
+edz.addEventListener('dragover',e=>{e.preventDefault();edz.classList.add('dov');});
+edz.addEventListener('dragleave',()=>edz.classList.remove('dov'));
+edz.addEventListener('drop',e=>{e.preventDefault();edz.classList.remove('dov');e.dataTransfer.files[0]&&handleExcel(e.dataTransfer.files[0]);});
+ef.addEventListener('change',()=>ef.files[0]&&handleExcel(ef.files[0]));
+
+function resetExcel(){
+  excelRows=[]; $('efi').style.display='none'; edz.style.display='';
+  $('genArea').style.display='none'; $('resultArea').style.display='none';
+  ef.value='';
+}
+
+function handleExcel(file){
+  const fi=mkFI(file.name,file.size,resetExcel);
+  $('efi').innerHTML=''; $('efi').appendChild(fi); $('efi').style.display='block';
+  edz.style.display='none';
+
+  readBuf(file).then(buf=>{
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+    excelRows=rows.filter(r=>Object.values(r).some(v=>String(v).trim()!==''));
+    if(!excelRows.length){alert('Excel 中没有数据行，请填写后重新上传');resetExcel();return;}
+
+    const hdrs=Object.keys(excelRows[0]);
+    const pc=Math.min(excelRows.length,5);
+    let tbl=`<div class="slb">数据预览 <span class="cbadge">${excelRows.length} 份</span></div><div class="tw"><table><tr>${hdrs.map(h=>`<th>{{${h}}}</th>`).join('')}</tr>`;
+    for(let i=0;i<pc;i++) tbl+=`<tr>${hdrs.map(h=>`<td style="color:var(--text)">${excelRows[i][h]||'—'}</td>`).join('')}</tr>`;
+    if(excelRows.length>5) tbl+=`<tr><td colspan="${hdrs.length}" style="text-align:center;color:var(--tdimmer)">… 共 ${excelRows.length} 行</td></tr>`;
+    tbl+='</table></div>';
+    $('dataPreview').innerHTML=tbl;
+    $('genArea').style.display='block';
+    $('resultArea').style.display='none';
+  }).catch(e=>{alert('读取 Excel 失败：'+e.message);resetExcel();});
+}
+
+// ── Generate ───────────────────────────────────────────────────────────────
+$('btnGen').onclick=async()=>{
+  if(!wordBytes||!excelRows.length){alert('请先完成前两步');return;}
+  const btn=$('btnGen');
+  btn.disabled=true; btn.textContent='⏳ 生成中...';
+  generated=[]; const errors=[];
+  const baseName=wordName.replace('.docx','');
+  const nameField=Object.keys(excelRows[0])[0];
+
+  for(let i=0;i<excelRows.length;i++){
+    try{
+      const zip=new PizZip(wordBytes);
+      const doc=new window.docxtemplater(zip,{
+        paragraphLoop:true, linebreaks:true,
+        delimiters:{start:'{{',end:'}}'}
+      });
+      doc.setData(excelRows[i]);
+      doc.render();
+      const out=doc.getZip().generate({type:'uint8array'});
+      const label=excelRows[i][nameField]?String(excelRows[i][nameField]).trim():`第${i+1}份`;
+      generated.push({name:`${label}.docx`,data:out});
+    }catch(e){
+      errors.push(`第${i+1}行：${e.message}`);
+    }
+  }
+
+  btn.disabled=false; btn.textContent='⚡ 批量生成 Word 文件';
+
+  const ra=$('resultArea'); ra.style.display='block';
+  let html=`<div class="dvd"></div>
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+      <span style="font-size:13px;font-weight:600">生成完成</span>
+      <span class="cbadge">${generated.length} 个文件</span>
+      ${generated.length>1?`<button class="btn btn-a" id="btnAll" style="margin-left:auto;padding:6px 13px;font-size:12px">⬇ 全部打包 ZIP</button>`:''}
+    </div><div class="rl">`;
+  generated.forEach((f,i)=>{
+    html+=`<div class="ri"><span>📝</span><span class="ri-n">${f.name}</span><button class="ri-b" data-i="${i}">下载</button></div>`;
+  });
+  html+='</div>';
+  if(errors.length) html+=`<div class="sb err"><div class="sd"></div><span>${errors.length} 行失败：${errors[0]}</span></div>`;
+  ra.innerHTML=html;
+
+  ra.querySelectorAll('.ri-b').forEach(b=>{
+    b.onclick=()=>dlFile(generated[+b.dataset.i]);
+  });
+
+  const allBtn=$('btnAll');
+  if(allBtn) allBtn.onclick=async()=>{
+    allBtn.disabled=true; allBtn.textContent='⏳ 打包中...';
+    try{
+      if(typeof JSZip==='undefined') throw new Error('JSZip未加载');
+      const zip=new JSZip();
+      generated.forEach(f=>zip.file(f.name,f.data,{binary:true}));
+      const zb=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+      if(zb.size<200) throw new Error('ZIP内容异常');
+      dlBlob(zb,`${baseName}_批量导出_${generated.length}份.zip`);
+    }catch(e){
+      for(let i=0;i<generated.length;i++){dlFile(generated[i]);await sleep(650);}
+    }
+    allBtn.disabled=false; allBtn.textContent='⬇ 全部打包 ZIP';
+  };
+};
+
+function dlFile(f){
+  dlBlob(
+    new Blob([f.data],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),
+    f.name
+  );
+}
+
+// ── Lib check ──────────────────────────────────────────────────────────────
+window.addEventListener('load',()=>{
+  const miss=[];
+  if(typeof PizZip==='undefined') miss.push('PizZip');
+  if(typeof window.docxtemplater==='undefined') miss.push('docxtemplater');
+  if(typeof XLSX==='undefined') miss.push('XLSX');
+  if(typeof JSZip==='undefined') miss.push('JSZip');
+  if(miss.length){
+    const b=$('errBanner');
+    b.textContent='⚠️ 依赖库加载失败：'+miss.join('、')+'。请检查网络后刷新，确保可访问 cdn.jsdelivr.net。';
+    b.style.display='block';
+  }
+});
+</script>
+</body>
+</html>
